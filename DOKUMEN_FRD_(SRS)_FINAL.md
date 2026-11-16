@@ -32,7 +32,6 @@ Sistem Informasi Kepegawaian PT INIX merupakan platform berbasis web untuk memfa
 ### 1.4 Referensi
 - IEEE Std 830-1998: *IEEE Recommended Practice for Software Requirements Specifications*.
 - ISO/IEC/IEEE 29148:2018: *Systems and software engineering — Life cycle processes — Requirements engineering*.
-- *STUDI_KASUS_INIX.md* & *LAB0_AI_PROMPT_ANALISIS_FRD_RISIKO.md*.
 
 ---
 
