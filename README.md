@@ -1,6 +1,4 @@
-# Aplikasi Kepegawaian & Pelatihan PT INIX (Eduparx Theme)
-
-Aplikasi web internal pengelolaan data kepegawaian dan permohonan cuti PT INIX dengan tema visual modern **Eduparx Training Catalog** ([https://eduparx.id/home/training?catalog=ai-engineer](https://eduparx.id/home/training?catalog=ai-engineer)).
+# Aplikasi Kepegawaian & Pelatihan PT INIX
 
 Aplikasi ini dibangun khusus sebagai target pengujian menyeluruh dalam pelatihan Software Testing:
 - **Manual Testing & UI Inspection:** Chrome DevTools, Network tab, LocalStorage JWT, Accessible HTML elements.
