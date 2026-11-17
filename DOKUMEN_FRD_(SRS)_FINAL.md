@@ -38,10 +38,9 @@ Sistem Informasi Kepegawaian PT INIX merupakan platform berbasis web untuk memfa
 ## 2. Deskripsi Keseluruhan (Overall Description)
 
 ### 2.1 Arsitektur & Lingkungan Operasional
-Sistem berarsitektur 3-tier:
-1. **Presentation Layer:** Client Browser React 19 (SPA / Vite).
-2. **Application / Business Logic Layer:** REST API Node.js v26 LTS + Express.js v5.3 + Sequelize ORM v6.37.
-3. **Data Layer:** MySQL Database 8.0.
+Sistem berarsitektur 2-tier:
+1. **Monolytic Application:** PHP Native v8.5.12.
+2. **Data Layer:** MySQL Database 8.0.
 
 ### 2.2 Karakteristik Pengguna & Persona (RBAC)
 | Role | Deskripsi Hak Akses |
@@ -117,7 +116,7 @@ Sistem berarsitektur 3-tier:
 |---|---|---|---|
 | **NFR-001** | Performance | Latensi respon endpoint autentikasi dan data pegawai harus cepat di bawah beban normal. | Response time ≤ 500ms pada persentil P95 dengan beban 50 concurrent users (pengujian via k6). |
 | **NFR-002** | Security | Form input dan REST API harus kebal terhadap ancaman injeksi dan scripting berbahaya. | Bebas dari celah OWASP Top 10 (khususnya SQL Injection pada Sequelize dan XSS pada input UI). |
-| **NFR-003** | Compatibility | Tampilan antarmuka (UI React) konsisten dan berfungsi pada berbagai peramban modern. | Lolos uji cross-browser (Google Chrome, Microsoft Edge, Mozilla Firefox versi stabil terbaru). |
+| **NFR-003** | Compatibility | Tampilan antarmuka template Admin LTE dan Bootstrap konsisten dan berfungsi pada berbagai peramban modern. | Lolos uji cross-browser (Google Chrome, Microsoft Edge, Mozilla Firefox versi stabil terbaru). |
 | **NFR-004** | Security | Data kredensial pengguna dan sesi token harus terenkripsi aman. | Password di-hash menggunakan algoritma aman (bcrypt/PBKDF2); token JWT memiliki masa kedaluwarsa (expiry). |
 
 ---
