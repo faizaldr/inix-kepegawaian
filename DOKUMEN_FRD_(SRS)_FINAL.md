@@ -23,11 +23,12 @@ Sistem Informasi Kepegawaian PT INIX merupakan platform berbasis web untuk memfa
 - **SRS:** Software Requirements Specification
 - **FRD:** Functional Requirements Document
 - **RBAC:** Role-Based Access Control
-- **JWT:** JSON Web Token
 - **NIP:** Nomor Induk Pegawai
 - **CRUD:** Create, Read, Update, Delete
 - **P95:** 95th Percentile Response Time
 - **OWASP:** Open Web Application Security Project
+- **CSRF:** Cross-Site Request Forgery
+- **PDO:** PHP Data Objects
 
 ### 1.4 Referensi
 - IEEE Std 830-1998: *IEEE Recommended Practice for Software Requirements Specifications*.
@@ -38,9 +39,10 @@ Sistem Informasi Kepegawaian PT INIX merupakan platform berbasis web untuk memfa
 ## 2. Deskripsi Keseluruhan (Overall Description)
 
 ### 2.1 Arsitektur & Lingkungan Operasional
-Sistem berarsitektur 2-tier:
-1. **Monolytic Application:** PHP Native v8.5.12.
-2. **Data Layer:** MySQL Database 8.0.
+Sistem berarsitektur Monolitik Terpadu (Monolithic Web Application):
+1. **Application & UI Layer:** PHP Native v8.5.x (Page-Controller & Minimalist View Rendering, Bootstrap/AdminLTE).
+2. **Data Layer:** MySQL Database 8.0 via PDO (PHP Data Objects).
+3. **Web Server:** Apache / Nginx (PHP-FPM) & Docker Compose.
 
 ### 2.2 Karakteristik Pengguna & Persona (RBAC)
 | Role | Deskripsi Hak Akses |
@@ -51,8 +53,10 @@ Sistem berarsitektur 2-tier:
 | **Pegawai** | Akses mandiri: Autentikasi, melihat profil, cek kuota, pengajuan cuti tahunan. |
 
 ### 2.3 Batasan Desain & Implementasi
-- Autentikasi berbasis Stateless Bearer JWT Token.
-- Penyimpanan password menggunakan hashing aman (bcrypt).
+- Autentikasi berbasis Server-Side PHP Session terproteksi (`HttpOnly`, `SameSite=Lax`).
+- Proteksi mutasi formulir menggunakan CSRF Token per-sesi.
+- Penyimpanan password menggunakan hashing aman (`password_hash` bcrypt).
+- Prepared statements PDO untuk seluruh interaksi basis data.
 - Batas kuota cuti tahunan pegawai adalah default 12 hari kalender kerja per tahun berjalan.
 - Deployment menggunakan Docker Compose.
 
@@ -64,13 +68,13 @@ Sistem berarsitektur 2-tier:
 
 | Req ID | Modul | Deskripsi Kebutuhan | Prioritas | Sumber / Kriteria Verifikasi |
 |---|---|---|---|---|
-| **FR-001** | Autentikasi | Pengguna dapat login menggunakan username dan password valid untuk memperoleh JWT access token. | High | POST `/api/auth/login/`, token response format valid JWT. |
-| **FR-002** | Autentikasi | Sistem menampilkan notifikasi/error HTTP 401 saat kredensial salah atau akun non-aktif (`is_active = false`). | High | Response 401 Unauthorized + validasi payload pesan error. |
-| **FR-003** | Data Pegawai | Pengguna role Admin dan HR dapat melihat daftar, menambah, mengubah, dan menghapus (khusus Admin) data profil pegawai. | High | GET, POST, PUT, DELETE `/api/pegawai/`. |
-| **FR-004** | Data Pegawai | Sistem melakukan validasi keunikan NIP (`nip` UNIQUE) dan mandatory check pada field Nama Lengkap dan Jabatan. | High | HTTP 400/409 jika NIP duplikat atau mandatory field kosong. |
-| **FR-005** | Pengajuan Cuti | Pegawai dapat mengajukan cuti dengan input tanggal mulai, tanggal selesai, dan alasan; sistem memvalidasi sisa kuota tahunan (maksimal 12 hari). | High | POST `/api/cuti/`, validasi tanggal selesai ≥ mulai dan durasi ≤ kuota. |
-| **FR-006** | Pengajuan Cuti | Manajer berwenang mengubah status pengajuan cuti pegawai menjadi `APPROVED` atau `REJECTED`. | High | PATCH `/api/cuti/{id}/status/`. |
-| **FR-007** | Autentikasi | Sistem menerapkan Role-Based Access Control (RBAC) ketat pada tingkat routing halaman dan otorisasi API endpoint. | High | HTTP 403 Forbidden bila role tidak berwenang mengakses endpoint. |
+| **FR-001** | Autentikasi | Pengguna dapat login menggunakan username dan password valid untuk membuat sesi kerja aktif. | High | POST `/login.php`, inisialisasi session dan redirect ke dashboard. |
+| **FR-002** | Autentikasi | Sistem menampilkan pesan kesalahan/flash message saat kredensial salah atau akun non-aktif (`is_active = false`). | High | Flash notification error pada halaman login tanpa bocorkan eksistensi user. |
+| **FR-003** | Data Pegawai | Pengguna role Admin dan HR dapat melihat daftar, menambah, mengubah, dan menghapus (khusus Admin) data profil pegawai. | High | Form & Handler pada `/pegawai.php`. |
+| **FR-004** | Data Pegawai | Sistem melakukan validasi keunikan NIP (`nip` UNIQUE) dan mandatory check pada field Nama Lengkap dan Jabatan. | High | Flash error / validasi form jika NIP duplikat atau field wajib kosong. |
+| **FR-005** | Pengajuan Cuti | Pegawai dapat mengajukan cuti dengan input tanggal mulai, tanggal selesai, dan alasan; sistem memvalidasi sisa kuota tahunan (maksimal 12 hari). | High | Form & Handler pada `/cuti.php`, validasi tanggal selesai ≥ mulai dan durasi ≤ kuota. |
+| **FR-006** | Pengajuan Cuti | Manajer berwenang mengubah status pengajuan cuti pegawai menjadi `APPROVED` atau `REJECTED`. | High | Aksi persetujuan/penolakan pada `/cuti.php` (khusus role Manajer). |
+| **FR-007** | Autentikasi | Sistem menerapkan Role-Based Access Control (RBAC) ketat pada tingkat akses halaman/modul dan verifikasi CSRF token pada setiap form POST. | High | HTTP 403 Forbidden atau redirect login jika akses tidak sah / token CSRF invalid. |
 
 ### 3.2 User Stories & Acceptance Criteria
 
@@ -78,7 +82,7 @@ Sistem berarsitektur 2-tier:
 - **Pernyataan:** *As a User, I want to login with my credentials, so that I can access the system.*
 - **Kriteria Penerimaan:**
   1. Validasi field kosong pada username dan password menampilkan pesan kesalahan.
-  2. Kredensial valid menghasilkan JWT token dan redirect ke halaman dashboard sesuai role.
+  2. Kredensial valid menginisialisasi sesi PHP yang aman dan redirect ke halaman dashboard sesuai role.
   3. Kredensial tidak valid memunculkan notifikasi error yang informatif tanpa membocorkan eksistensi user.
 
 #### US-002: Registrasi Pegawai Baru
@@ -91,9 +95,9 @@ Sistem berarsitektur 2-tier:
 #### US-003: Pembaruan & Penghapusan Pegawai
 - **Pernyataan:** *As an HR/Admin, I want to edit and delete employee records, so that data remains accurate.*
 - **Kriteria Penerimaan:**
-  1. Perubahan data pegawai terupdate secara langsung pada antarmuka pengguna (UI).
+  1. Perubahan data pegawai terupdate secara langsung pada tampilan tabel pegawai.
   2. Terdapat modal konfirmasi verifikasi sebelum proses penghapusan data pegawai dijalankan.
-  3. Operasi delete hanya diizinkan untuk role Admin.
+  3. Operasi delete hanya diizinkan untuk role Admin dan diverifikasi dengan CSRF token.
 
 #### US-004: Pengajuan Cuti Tahunan
 - **Pernyataan:** *As a Pegawai, I want to submit a leave request, so that I can take my planned leave.*
@@ -114,10 +118,10 @@ Sistem berarsitektur 2-tier:
 
 | Req ID | Kategori | Deskripsi Kebutuhan | Standar / Metrik Keberhasilan |
 |---|---|---|---|
-| **NFR-001** | Performance | Latensi respon endpoint autentikasi dan data pegawai harus cepat di bawah beban normal. | Response time ≤ 500ms pada persentil P95 dengan beban 50 concurrent users (pengujian via k6). |
-| **NFR-002** | Security | Form input dan REST API harus kebal terhadap ancaman injeksi dan scripting berbahaya. | Bebas dari celah OWASP Top 10 (khususnya SQL Injection pada Sequelize dan XSS pada input UI). |
-| **NFR-003** | Compatibility | Tampilan antarmuka template Admin LTE dan Bootstrap konsisten dan berfungsi pada berbagai peramban modern. | Lolos uji cross-browser (Google Chrome, Microsoft Edge, Mozilla Firefox versi stabil terbaru). |
-| **NFR-004** | Security | Data kredensial pengguna dan sesi token harus terenkripsi aman. | Password di-hash menggunakan algoritma aman (bcrypt/PBKDF2); token JWT memiliki masa kedaluwarsa (expiry). |
+| **NFR-001** | Performance | Latensi respon halaman server-side rendering harus cepat di bawah beban normal. | Response time ≤ 500ms pada persentil P95 dengan beban 50 concurrent users (pengujian via k6 / ApacheBench). |
+| **NFR-002** | Security | Form input dan query database harus kebal terhadap ancaman injeksi dan scripting berbahaya. | Bebas dari celah OWASP Top 10 (khususnya SQL Injection via PDO Prepared Statements, XSS via escaping output, dan CSRF protection). |
+| **NFR-003** | Compatibility | Tampilan antarmuka template Admin LTE / Bootstrap konsisten dan responsif pada berbagai peramban modern. | Lolos uji cross-browser (Google Chrome, Microsoft Edge, Mozilla Firefox versi stabil terbaru). |
+| **NFR-004** | Security | Data kredensial pengguna dan sesi login tersimpan secara aman. | Password di-hash menggunakan algoritma aman (`password_hash` bcrypt); session ID terlindungi (`HttpOnly`, `SameSite=Lax`, regeneration per login). |
 
 ---
 
@@ -159,36 +163,35 @@ erDiagram
 
 ---
 
-## 6. Antarmuka Eksternal & Endpoint API
+## 6. Struktur Antarmuka & Modul Aplikasi (Page-Controller Monolithic)
 
-| Method | Endpoint | Deskripsi | Hak Akses (RBAC) |
+| Modul File | Metode HTTP | Deskripsi Alur & Aksi | Hak Akses (RBAC) |
 |---|---|---|---|
-| `POST` | `/api/auth/login/` | Autentikasi user & generate JWT access token | Public |
-| `POST` | `/api/auth/refresh/` | Refresh JWT access token | Public |
-| `GET` | `/api/pegawai/` | Menampilkan seluruh daftar data pegawai | Bearer JWT (Semua Role) |
-| `POST` | `/api/pegawai/` | Menambahkan data pegawai baru | Bearer JWT (HR, Admin) |
-| `GET` | `/api/pegawai/{id}/` | Menampilkan detail data pegawai tertentu | Bearer JWT (Semua Role) |
-| `PUT` | `/api/pegawai/{id}/` | Memperbarui data pegawai | Bearer JWT (HR, Admin) |
-| `DELETE` | `/api/pegawai/{id}/` | Menghapus data pegawai | Bearer JWT (Admin) |
-| `GET` | `/api/cuti/` | Menampilkan daftar seluruh pengajuan cuti | Bearer JWT (Semua Role) |
-| `GET` | `/api/cuti/kuota` | Menampilkan sisa kuota cuti tahunan pegawai | Bearer JWT (Pegawai) |
-| `POST` | `/api/cuti/` | Mengajukan permohonan cuti baru | Bearer JWT (Pegawai) |
-| `PATCH` | `/api/cuti/{id}/status/`| Memperbarui status persetujuan cuti | Bearer JWT (Manajer) |
+| `login.php` | `GET` | Render form login pengguna | Public |
+| `login.php` | `POST` | Validasi kredensial, set session login, redirect dashboard | Public |
+| `logout.php` | `POST` / `GET` | Hapus session login dan redirect ke login page | Authenticated |
+| `index.php` | `GET` | Dashboard utama, ringkasan statistik & shortcut modul | Authenticated (Semua Role) |
+| `pegawai.php` | `GET` | Daftar seluruh pegawai (tabel) & form tambah/edit modal | HR, Admin |
+| `pegawai.php` | `POST` | Handler tambah (`action=create`) & ubah (`action=update`) pegawai | HR, Admin |
+| `pegawai.php` | `POST` | Handler hapus pegawai (`action=delete`) | Admin |
+| `cuti.php` | `GET` | Riwayat & daftar pengajuan cuti, info sisa kuota cuti | Authenticated (Semua Role) |
+| `cuti.php` | `POST` | Handler pengajuan cuti baru (`action=request`) | Pegawai |
+| `cuti.php` | `POST` | Handler persetujuan cuti (`action=approve` / `action=reject`) | Manajer |
 
 ---
 
 ## 7. Matriks Keterlacakan Kebutuhan (Requirements Traceability Matrix)
 
-| Req ID | User Story | API Endpoint | Modul |
+| Req ID | User Story | Modul / Handler | Modul Bisnis |
 |---|---|---|---|
-| FR-001 | US-001 | POST `/api/auth/login/` | Autentikasi |
-| FR-002 | US-001 | POST `/api/auth/login/` | Autentikasi |
-| FR-003 | US-002, US-003 | GET/POST/PUT/DELETE `/api/pegawai/` | Data Pegawai |
-| FR-004 | US-002 | POST/PUT `/api/pegawai/` | Data Pegawai |
-| FR-005 | US-004 | POST `/api/cuti/`, GET `/api/cuti/kuota` | Pengajuan Cuti |
-| FR-006 | US-005 | PATCH `/api/cuti/{id}/status/` | Pengajuan Cuti |
-| FR-007 | All | Seluruh Endpoint Terproteksi | Autentikasi |
-| NFR-001 | US-001, US-002 | `/api/auth/login/`, `/api/pegawai/` | Non-Fungsional |
-| NFR-002 | All | Form UI & API Payload | Non-Fungsional |
-| NFR-003 | All | Frontend SPA | Non-Fungsional |
-| NFR-004 | US-001 | Database & Auth Service | Non-Fungsional |
+| FR-001 | US-001 | `login.php` (POST) | Autentikasi |
+| FR-002 | US-001 | `login.php` (Flash Error) | Autentikasi |
+| FR-003 | US-002, US-003 | `pegawai.php` (GET/POST) | Data Pegawai |
+| FR-004 | US-002 | `pegawai.php` (Validation) | Data Pegawai |
+| FR-005 | US-004 | `cuti.php` (GET/POST Request) | Pengajuan Cuti |
+| FR-006 | US-005 | `cuti.php` (POST Status) | Pengajuan Cuti |
+| FR-007 | All | `auth.php` & CSRF Token di seluruh form | Autentikasi & Keamanan |
+| NFR-001 | US-001, US-002 | `login.php`, `pegawai.php` | Non-Fungsional |
+| NFR-002 | All | Form UI & Prepared Statements | Non-Fungsional |
+| NFR-003 | All | Server-Side Template (AdminLTE) | Non-Fungsional |
+| NFR-004 | US-001 | Database & Session Handling | Non-Fungsional |
