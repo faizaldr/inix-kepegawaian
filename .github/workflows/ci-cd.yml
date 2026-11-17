@@ -1,0 +1,225 @@
+# Menamai alur kerja CI/CD agar mudah diidentifikasi di antarmuka tab GitHub Actions
+name: CI/CD Pipeline - PT INIX Kepegawaian Monolith
+
+# Blok pemicu (event triggers) yang menentukan kapan alur kerja ini harus dieksekusi otomatis
+on:
+  # Memantau setiap event pengiriman commit baru (git push) ke remote repository
+  push:
+    # Membatasi eksekusi event push hanya pada daftar branch spesifik
+    branches:
+      - faizal   # Branch individual developer untuk pengujian cepat sebelum integrasi
+      - dev      # Branch integrasi utama seluruh developer
+      - stagging # Branch pra-rilis untuk User Acceptance Test (UAT) dan QA
+      - main     # Branch rilis produksi utama
+
+  # Memantau event pembuatan atau pembaruan Pull Request (PR)
+  pull_request:
+    # Menjalankan validasi otomatis sebelum kode di-merge ke branch target
+    branches:
+      - dev      # Memastikan PR dari branch feature/faizal tidak merusak branch dev
+      - stagging # Memastikan PR dari dev ke stagging memenuhi standar uji
+      - main     # Memastikan PR akhir ke produksi benar-benar stabil dan terverifikasi
+
+# Blok variabel global yang dapat diakses oleh seluruh job di dalam workflow ini
+env:
+  # Menggunakan GitHub Container Registry resmi sebagai tempat penyimpanan Docker Image
+  REGISTRY: ghcr.io
+  # Mengambil namespace path repositori secara otomatis (contoh: username/inix-kepegawaian)
+  IMAGE_NAME: ${{ github.repository }}
+
+# Mendefinisikan kumpulan proses (pekerjaan/jobs) yang akan dijalankan oleh runner GitHub
+jobs:
+
+  # =========================================================================================
+  # JOB 1: LINTING DAN ANALISIS STATIS KODE (Berjalan di: faizal, dev, stagging, main)
+  # Alasan: Mencegah error sintaksis PHP & mendeteksi celah keamanan sedini mungkin (Fail-Fast)
+  # =========================================================================================
+  lint-and-static-analysis:
+    # Nama label pekerjaan yang muncul pada visual diagram alur di GitHub Actions
+    name: Lint & Static Code Analysis
+    # Memilih sistem operasi mesin virtual GitHub-hosted runner (Ubuntu Linux versi stabil terbaru)
+    runs-on: ubuntu-latest
+
+    # Langkah-langkah berurutan di dalam Job 1
+    steps:
+      # Mengunduh (clone) source code dari branch terkait ke runner agar file proyek tersedia
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # Menginstal runtime PHP di mesin runner agar perintah CLI PHP dapat dieksekusi
+      - name: Setup PHP Environment
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'              # Menyesuaikan versi runtime PHP sesuai arsitektur aplikasi (PHP 8.2)
+          extensions: pdo, pdo_mysql      # Mengaktifkan ekstensi PDO MySQL yang dibutuhkan aplikasi
+
+      # Memindai seluruh berkas PHP untuk mendeteksi kesalahan sintaksis/typo tanpa perlu menjalankan server
+      - name: PHP Syntax Linting (PHP Parallel Lint)
+        run: |
+          # find: mencari semua file .php di folder aplikasi; xargs php -l: memvalidasi sintaksis PHP baris per baris
+          find app config database includes public -name "*.php" -print0 | xargs -0 -n 1 php -l
+
+      # Melakukan pemindaian Static Application Security Testing (SAST) menggunakan Semgrep
+      - name: Semgrep Static Application Security Testing (SAST)
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: p/php                   # Menerapkan aturan standar OWASP keamanan kode bahasa PHP
+        continue-on-error: true           # Alasan: Pipeline tidak langsung gagal agar QA dapat meninjau temuan keamanan
+
+  # =========================================================================================
+  # JOB 2: PENGUJIAN INTEGRASI, DATABASE SEEDING & VERIFIKASI (Berjalan di semua branch)
+  # Alasan: Memastikan container aplikasi, MySQL, data seeder, dan endpoint live berfungsi normal
+  # =========================================================================================
+  test-and-verify:
+    # Nama label pekerjaan kedua
+    name: Build, Database Seed & E2E Verification
+    # Menunggu Job 1 sukses; jika Job 1 gagal, Job 2 tidak akan dijalankan untuk menghemat waktu & resource
+    needs: lint-and-static-analysis
+    # Berjalan di atas mesin virtual Ubuntu terbaru
+    runs-on: ubuntu-latest
+
+    # Langkah-langkah berurutan di dalam Job 2
+    steps:
+      # Mengunduh source code ke mesin runner Job 2
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # Membuat berkas konfigurasi .env lokal untuk environment container di runner CI
+      - name: Setup Environment File
+        run: |
+          cp .env.example .env                                       # Menggandakan konfigurasi default
+          sed -i 's/DB_HOST=db/DB_HOST=127.0.0.1/g' .env            # Memastikan koneksi jaringan host runner sinkron
+
+      # Menyalakan stack monolitik (container PHP Apache & container MySQL 8.0) menggunakan docker compose
+      - name: Start Docker Services (App & MySQL)
+        run: |
+          docker compose up -d --build                               # Membangun image Dockerfile dan menjalankan background
+
+      # Menunggu hingga MySQL container benar-benar siap menerima koneksi (mengatasi issue race-condition)
+      - name: Wait for MySQL Healthcheck
+        run: |
+          # Melakukan looping ping maksimal 60 detik sampai server database MySQL memberi respon 'mysqld is alive'
+          timeout 60s bash -c 'until docker exec inix_db_container mysqladmin ping -h localhost -u root -prootpassword --silent; do echo "Menunggu MySQL siap..."; sleep 3; done'
+
+      # Mengeksekusi database seeder untuk membuat tabel fresh & mengisi data awal akun testing
+      - name: Run Database Seeder CLI
+        run: |
+          docker exec inix_monolith_container php database/seed.php   # Menjalankan seed data admin, hr, pegawai, & cuti
+
+      # Memverifikasi endpoint /health aplikasi via HTTP request untuk memastikan web server melayani traffic
+      - name: Healthcheck HTTP Endpoint Verification
+        run: |
+          # curl -f: memastikan status HTTP 200 OK; jika HTTP 404/500, command melempar exit code 1 dan membatalkan build
+          curl -f http://localhost:8000/health || (echo "Healthcheck Gagal!" && exit 1)
+
+      # Menjalankan pemindaian Dynamic Application Security Testing (DAST) menggunakan OWASP ZAP Scanner
+      - name: Run OWASP ZAP Baseline Security Scan
+        # Kondisi: Hanya dijalankan pada branch dev dan stagging untuk analisis kerentanan sebelum masuk produksi
+        if: github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/stagging'
+        uses: zaproxy/action-baseline@v0.12.0
+        with:
+          target: 'http://localhost:8000' # Sasaran URL crawling form web monolitik
+        continue-on-error: true           # Alasan: Menampung laporan vulnerability ZAP tanpa memblokir alur pengujian
+
+      # Membersihkan instance Docker dan volume setelah pengujian selesai
+      - name: Tear Down Docker
+        # if: always(): Tetap dijalankan meskipun ada step sebelumnya yang error agar runner tidak meninggalkan sampah
+        if: always()
+        run: |
+          docker compose down -v          # Menghentikan container dan menghapus volume database sementara
+
+  # =========================================================================================
+  # JOB 3: PACKAGING & PUBLISHING DOCKER IMAGE (Berjalan di: dev, stagging, main)
+  # Alasan: Mengemas aplikasi terverifikasi menjadi Docker Image & disimpan di registry terpusat
+  # =========================================================================================
+  build-and-push-image:
+    # Nama label pekerjaan ketiga
+    name: Build & Push Container Image
+    # Menunggu verifikasi Job 2 selesai tanpa error
+    needs: test-and-verify
+    # Kondisi: Hanya berjalan saat event push pada branch dev, stagging, atau main (branch faizal tidak dipush ke registry)
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/stagging' || github.ref == 'refs/heads/main')
+    # Runner environment Ubuntu
+    runs-on: ubuntu-latest
+    # Konfigurasi hak akses token keamanan GitHub Actions
+    permissions:
+      contents: read                      # Izin membaca kode repositori
+      packages: write                     # Izin menulis dan mempublikasikan image ke GitHub Packages (GHCR)
+
+    # Langkah-langkah pembuatan dan pengunggahan image
+    steps:
+      # Mengambil source code terbaru untuk dibuild ke dalam image
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # Menentukan penamaan tag Docker Image secara dinamis berdasarkan asal branch
+      - name: Set Image Tag Based on Branch
+        id: vars                          # Memberikan ID output langkah ini agar dapat dipanggil pada step berikutnya
+        run: |
+          # Jika push ke branch main, berikan label tag prod-latest
+          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            echo "TAG=prod-latest" >> $GITHUB_OUTPUT
+          # Jika push ke branch stagging, berikan label tag staging-latest
+          elif [ "${{ github.ref }}" = "refs/heads/stagging" ]; then
+            echo "TAG=staging-latest" >> $GITHUB_OUTPUT
+          # Jika push ke branch dev, berikan label tag dev-latest
+          elif [ "${{ github.ref }}" = "refs/heads/dev" ]; then
+            echo "TAG=dev-latest" >> $GITHUB_OUTPUT
+          fi
+
+      # Melakukan login autentikasi ke GitHub Container Registry menggunakan rahasia bawaan GITHUB_TOKEN
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }} # Token otomatis GitHub tanpa perlu setup manual di menu secrets
+
+      # Membangun image dari Dockerfile proyek dan langsung mengunggahnya ke GitHub Container Registry
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .                      # Menggunakan direktori root proyek sebagai context build
+          push: true                      # Menginstruksikan action untuk langsung melakukan upload image ke registry
+          # Menggabungkan registry, nama image repositori, dan tag dinamis yang dihasilkan pada step 'vars'
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.vars.outputs.TAG }}
+
+  # =========================================================================================
+  # JOB 4: DEPLOYMENT SESUAI TARGET LINGKUNGAN (Berjalan di: dev, stagging, main)
+  # Alasan: Mengalirkan image yang sudah tersimpan di registry ke server target masing-masing
+  # =========================================================================================
+  deploy:
+    # Nama label pekerjaan keempat
+    name: Deploy to Environment
+    # Menunggu Job 3 selesai memastikan image container sudah siap diunduh di registry
+    needs: build-and-push-image
+    # Kondisi: Hanya berjalan saat event push pada branch dev, stagging, atau main
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/stagging' || github.ref == 'refs/heads/main')
+    # Runner environment Ubuntu
+    runs-on: ubuntu-latest
+
+    # Langkah deployment terisolasi per environment
+    steps:
+      # Step deployment khusus lingkungan Development
+      - name: Deploy to Development Server
+        # Alasan if: Memastikan instruksi ini HANYA dieksekusi saat ada commit baru di branch 'dev'
+        if: github.ref == 'refs/heads/dev'
+        run: |
+          echo ">>> [DEPLOY DEV] Melakukan deployment image 'dev-latest' ke Server Dev PT INIX..."
+          # Perintah nyata di server: ssh remote server -> docker compose pull -> docker compose up -d
+
+      # Step deployment khusus lingkungan Staging (UAT)
+      - name: Deploy to Staging Server
+        # Alasan if: Memastikan instruksi ini HANYA dieksekusi saat ada commit baru di branch 'stagging'
+        if: github.ref == 'refs/heads/stagging'
+        run: |
+          echo ">>> [DEPLOY STAGING] Melakukan deployment image 'staging-latest' ke Server Staging PT INIX..."
+          # Perintah nyata di server: deploy ke lingkungan staging untuk verifikasi akhir oleh tim QA
+
+      # Step deployment khusus lingkungan Production
+      - name: Deploy to Production Server
+        # Alasan if: Memastikan instruksi ini HANYA dieksekusi saat kode sudah disetujui masuk branch 'main'
+        if: github.ref == 'refs/heads/main'
+        run: |
+          echo ">>> [DEPLOY PROD] Melakukan deployment image 'prod-latest' ke Server Production PT INIX..."
+          # Perintah nyata di server: rilis resmi ke server produksi untuk pengguna publik
