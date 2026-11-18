@@ -1,0 +1,27 @@
+{
+  "name": "inix-kepegawaian",
+  "version": "1.0.0",
+  "description": "Aplikasi Web Kepegawaian & Pelatihan PT INIX dibangun dengan **Arsitektur Monolitik PHP Native (PDO MySQL, SSR MVC)** dan antarmuka bertema modern menyerupai **Eduparx Training Catalog**.",
+  "main": "index.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/faizaldr/inix-kepegawaian.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/faizaldr/inix-kepegawaian/issues"
+  },
+  "homepage": "https://github.com/faizaldr/inix-kepegawaian#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.65.1"
+  }
+}
