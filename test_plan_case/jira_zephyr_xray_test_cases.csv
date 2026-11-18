@@ -1,0 +1,199 @@
+﻿Issue Type,Summary,Description,Component,Priority,Labels,Test Step,Test Data,Test Result
+Test,[TC-AUTH-001] Login valid pengguna role Admin,"Pre-conditions: User admin@inix.com aktif di DB
+Post-conditions: Sesi PHPSESSID tersimpan di cookie.
+Tools: Playwright, Chrome DevTools, Postman",Autentikasi,High,"autentikasi,positif,qa_testing","1. Buka /login
+2. Input username & password
+3. Klik tombol Login","username: admin@inix.com
+password: Admin@123!
+_csrf: Valid token","HTTP 302 redirect /dashboard. Alert welcome-msg muncul, badge role ADMIN."
+Test,[TC-AUTH-002] Login valid pengguna role HR,"Pre-conditions: User hr@inix.com aktif di DB
+Post-conditions: Sesi aktif tersimpan.
+Tools: Playwright, Postman",Autentikasi,High,"autentikasi,positif,qa_testing","1. Buka /login
+2. Input kredensial HR
+3. Submit form","username: hr@inix.com
+password: Hr@123!",HTTP 302 redirect /dashboard. Badge HR dan navigasi Data Pegawai tampil.
+Test,[TC-AUTH-003] Login valid pengguna role Manajer,"Pre-conditions: User manager@inix.com aktif di DB
+Post-conditions: Sesi aktif tersimpan.
+Tools: Playwright, Postman",Autentikasi,High,"autentikasi,positif,qa_testing","1. Buka /login
+2. Input kredensial Manajer
+3. Submit form","username: manager@inix.com
+password: Manager@123!",HTTP 302 redirect /dashboard. Badge MANAJER tampil.
+Test,[TC-AUTH-004] Login valid pengguna role Pegawai,"Pre-conditions: User pegawai@inix.com aktif di DB
+Post-conditions: Sesi aktif tersimpan.
+Tools: Playwright, Postman",Autentikasi,High,"autentikasi,positif,qa_testing","1. Buka /login
+2. Input kredensial Pegawai
+3. Submit form","username: pegawai@inix.com
+password: Pegawai@123!",HTTP 302 redirect /dashboard. Badge PEGAWAI tampil.
+Test,[TC-AUTH-005] Login gagal password tidak cocok,"Pre-conditions: User terdaftar di DB
+Post-conditions: Sesi tidak terbentuk.
+Tools: Playwright, Postman",Autentikasi,High,"autentikasi,negatif,qa_testing","1. Buka /login
+2. Input password salah
+3. Submit","username: admin@inix.com
+password: WrongPassword!","HTTP 302 -> HTTP 200 /login. Alert data-testid=""error-message"": Kredensial tidak valid."
+Test,[TC-AUTH-006] Login gagal akun non-aktif,"Pre-conditions: Akun dibuat dengan is_active=0
+Post-conditions: Tidak ada sesi login.
+Tools: Postman, Chrome DevTools",Autentikasi,High,"autentikasi,negatif,qa_testing","1. Buka /login
+2. Input kredensial akun non-aktif
+3. Submit","username: nonaktif@inix.com
+password: Pass@123!",HTTP 302 -> HTTP 200 /login. Alert: Akun Anda sedang dinonaktifkan.
+Test,[TC-AUTH-007] Validasi input kosong Username & Password,"Pre-conditions: Halaman login terbuka
+Post-conditions: Tetap di /login.
+Tools: Playwright, Chrome DevTools",Autentikasi,Medium,"autentikasi,negatif,qa_testing","1. Kosongkan form
+2. Submit POST /login","username: """"
+password: """"",Browser blokir submit / server: Username dan password wajib diisi.
+Test,[TC-AUTH-008] Logout sesi pengguna,"Pre-conditions: Pengguna telah login
+Post-conditions: Akses /dashboard dicegat kembali ke /login.
+Tools: Playwright, Chrome DevTools",Autentikasi,High,"autentikasi,positif,qa_testing","1. Klik tombol Keluar (data-testid=""btn-logout"")",GET /logout,HTTP 302 redirect ke /login. Cookie sesi dihancurkan.
+Test,[TC-RBAC-001] Pegawai mengakses halaman tambah pegawai,"Pre-conditions: Login sebagai role Pegawai
+Post-conditions: Akses ditolak, form tidak dimuat.
+Tools: Playwright, Postman",RBAC,High,"rbac,negatif,qa_testing",1. Akses langsung URL /pegawai/tambah,GET /pegawai/tambah,HTTP 403 / redirect /dashboard. Flash error: Anda tidak memiliki hak akses...
+Test,[TC-RBAC-002] HR mencoba menghapus data pegawai,"Pre-conditions: Login sebagai role HR
+Post-conditions: Integritas data terjaga.
+Tools: Postman",RBAC,High,"rbac,negatif,qa_testing",1. Kirim request POST ke /pegawai/hapus,"POST /pegawai/hapus
+id: 4
+_csrf: Valid",HTTP 403 / redirect /dashboard. Data tidak terhapus.
+Test,[TC-RBAC-003] Akses halaman terproteksi tanpa autentikasi,"Pre-conditions: Belum login
+Post-conditions: URL intended tersimpan di session.
+Tools: Playwright, Chrome DevTools",RBAC,High,"rbac,negatif,qa_testing",1. Buka URL /pegawai secara langsung (browser private),GET /pegawai,HTTP 302 redirect ke /login. Alert: Silakan masuk terlebih dahulu.
+Test,[TC-PEG-001] Admin & HR melihat daftar pegawai,"Pre-conditions: Login role HR/Admin
+Post-conditions: State view tersimpan di localStorage.
+Tools: Playwright, Chrome DevTools, DBeaver",Data Pegawai,High,"data_pegawai,positif,qa_testing","1. Navigasi ke /pegawai
+2. Toggle Grid & Table view",Query: none,"HTTP 200. UI tampilkan data-testid=""pegawai-table"" dengan 5+ baris data."
+Test,[TC-PEG-002] HR menambah data pegawai baru valid,"Pre-conditions: Login role HR
+Post-conditions: Record tersimpan di DB tabel pegawai.
+Tools: Playwright, Postman, DBeaver",Data Pegawai,High,"data_pegawai,positif,qa_testing","1. Buka /pegawai/tambah
+2. Isi NIP baru, Nama, Jabatan
+3. Klik Simpan","nip: NIP-2026-999
+nama_lengkap: Dewi Lestari
+jabatan: QA Engineer
+status: aktif","HTTP 302 -> /pegawai. Alert data-testid=""success-message"": Data pegawai berhasil ditambahkan."
+Test,[TC-PEG-003] HR memperbarui data jabatan pegawai,"Pre-conditions: Data pegawai ID 5 ada di DB
+Post-conditions: Record di DB terupdate.
+Tools: Playwright, DBeaver",Data Pegawai,High,"data_pegawai,positif,qa_testing","1. Buka /pegawai/edit?id=5
+2. Ubah Jabatan
+3. Klik Perbarui Data","id: 5
+jabatan: Senior Data Scientist",HTTP 302 -> /pegawai. Jabatan baru tampil di tabel.
+Test,[TC-PEG-004] Admin menghapus data pegawai via konfirmasi modal,"Pre-conditions: Login Admin, data target ada
+Post-conditions: Record ID 3 terhapus di DB.
+Tools: Playwright, Chrome DevTools, DBeaver",Data Pegawai,High,"data_pegawai,positif,qa_testing","1. Buka /pegawai
+2. Klik btn-delete-3
+3. Klik data-testid=""btn-confirm-delete""","POST /pegawai/hapus
+id: 3
+_csrf: Valid",HTTP 302 -> /pegawai. Alert: Data berhasil dihapus. Baris ID 3 hilang dari tabel.
+Test,[TC-PEG-005] Pencarian pegawai dengan keyword,"Pre-conditions: Minimal 5 pegawai terdaftar
+Post-conditions: Data terfilter akurat.
+Tools: Playwright, Chrome DevTools",Data Pegawai,Medium,"data_pegawai,positif,qa_testing","1. Input keyword 'Budi' pada data-testid=""search-pegawai""
+2. Klik Terapkan",search: Budi,"HTTP 200. Counter data-testid=""total-counter"": Menampilkan 1 Data Pegawai."
+Test,[TC-PEG-006] Tambah pegawai dengan NIP duplikat,"Pre-conditions: NIP-2025-001 sudah ada di DB
+Post-conditions: Data tidak tersimpan ke DB.
+Tools: Playwright, Postman, DBeaver",Data Pegawai,High,"data_pegawai,negatif,qa_testing","1. Input NIP NIP-2025-001
+2. Submit form","nip: NIP-2025-001
+nama_lengkap: Nama Baru
+jabatan: Staff",HTTP 302 -> /pegawai/tambah. Alert: NIP NIP-2025-001 sudah terdaftar di sistem.
+Test,[TC-PEG-007] Tambah pegawai field nama kosong,"Pre-conditions: Login role HR
+Post-conditions: Data ditolak server.
+Tools: Postman, Chrome DevTools",Data Pegawai,High,"data_pegawai,negatif,qa_testing","1. Isi NIP, kosongkan Nama Lengkap
+2. Submit POST","nip: NIP-2026-010
+nama_lengkap: """"
+jabatan: DevOps","Pesan validasi: Field NIP, Nama Lengkap, dan Jabatan wajib diisi."
+Test,[TC-PEG-008] Tambah pegawai field jabatan kosong,"Pre-conditions: Login role HR
+Post-conditions: Record tidak dibuat.
+Tools: Postman, Chrome DevTools",Data Pegawai,High,"data_pegawai,negatif,qa_testing","1. Isi NIP & Nama, kosongkan Jabatan
+2. Submit POST","nip: NIP-2026-011
+nama_lengkap: Rian
+jabatan: """"","Validasi server gagal, redirect dengan pesan error."
+Test,[TC-PEG-009] Update NIP pegawai ke NIP pegawai lain,"Pre-conditions: ID 1 (NIP-2025-001) & ID 2 (NIP-2025-002) ada
+Post-conditions: NIP pegawai 2 tidak berubah.
+Tools: Playwright, DBeaver",Data Pegawai,High,"data_pegawai,negatif,qa_testing","1. Edit Pegawai ID 2
+2. Ubah NIP ke NIP-2025-001
+3. Submit","id: 2
+nip: NIP-2025-001",Alert: NIP NIP-2025-001 sudah digunakan oleh pegawai lain.
+Test,[TC-CUTI-001] Pegawai mengajukan cuti 1 hari — BVA Minimum Valid,"Pre-conditions: Login Pegawai, sisa kuota=12
+Post-conditions: Record cuti baru tersimpan di DB.
+Tools: Playwright, DBeaver",Pengajuan Cuti,High,"pengajuan_cuti,positif,qa_testing","1. Buka /cuti/ajukan
+2. Pilih tgl mulai & selesai tanggal sama
+3. Isi alasan
+4. Submit","tgl_mulai: 2026-12-10
+tgl_selesai: 2026-12-10 (1 hari)
+alasan: Keperluan pribadi",HTTP 302 -> /cuti. Alert: Pengajuan berhasil. Status badge: PENDING.
+Test,[TC-CUTI-002] Pengajuan cuti tepat 12 hari — BVA Upper Boundary,"Pre-conditions: Pegawai dengan sisa kuota=12
+Post-conditions: Kuota belum berkurang sebelum approved.
+Tools: Playwright, DBeaver",Pengajuan Cuti,High,"pengajuan_cuti,positif,qa_testing","1. Buka /cuti/ajukan
+2. Rentang tanggal 12 hari
+3. Submit","tgl_mulai: 2026-12-01
+tgl_selesai: 2026-12-12 (12 hari)
+alasan: Libur akhir tahun",HTTP 302 -> /cuti. Status PENDING berhasil dicatat.
+Test,[TC-CUTI-003] Pengajuan cuti 13 hari melebihi batas — BVA Over Boundary,"Pre-conditions: Pegawai dengan sisa kuota=12
+Post-conditions: Pengajuan ditolak, tidak tersimpan.
+Tools: Playwright, DBeaver",Pengajuan Cuti,High,"pengajuan_cuti,negatif,qa_testing","1. Buka /cuti/ajukan
+2. Rentang 13 hari
+3. Submit","tgl_mulai: 2026-12-01
+tgl_selesai: 2026-12-13 (13 hari)
+alasan: Cuti panjang",HTTP 302 -> /cuti/ajukan. Alert: Durasi cuti (13 hari) melebihi sisa kuota (12 hari)!
+Test,[TC-CUTI-004] Validasi tgl selesai lebih awal dari tgl mulai,"Pre-conditions: Form cuti terbuka
+Post-conditions: Form ditolak server.
+Tools: Playwright, Chrome DevTools",Pengajuan Cuti,High,"pengajuan_cuti,negatif,qa_testing","1. Input tgl mulai > selesai
+2. Submit","tgl_mulai: 2026-12-15
+tgl_selesai: 2026-12-10",HTTP 302 -> /cuti/ajukan. Alert: Tanggal selesai tidak boleh lebih awal dari mulai.
+Test,[TC-CUTI-005] Pengajuan cuti field alasan kosong,"Pre-conditions: Form cuti terbuka
+Post-conditions: Data tidak tersimpan.
+Tools: Postman, Chrome DevTools",Pengajuan Cuti,Medium,"pengajuan_cuti,negatif,qa_testing","1. Isi tanggal valid, kosongkan alasan
+2. Submit","tgl_mulai: 2026-12-05
+tgl_selesai: 2026-12-06
+alasan: """"",Pesan: Semua kolom formulir cuti wajib diisi.
+Test,[TC-CUTI-006] Kalkulasi durasi cuti otomatis via JavaScript,"Pre-conditions: Halaman /cuti/ajukan terbuka
+Post-conditions: Tidak ada submit server terjadi.
+Tools: Playwright, Chrome DevTools",Pengajuan Cuti,Medium,"pengajuan_cuti,positif,qa_testing","1. Pilih tgl mulai 2026-12-01
+2. Pilih tgl selesai 2026-12-03",Client event: change pada input date,"data-testid=""durasi-cuti"" berubah teks: 3 Hari Kerja."
+Test,[TC-CUTI-007] Manajer menyetujui cuti APPROVED & kuota terpotong,"Pre-conditions: Cuti ID 1 status PENDING (durasi 3 hari)
+Post-conditions: Sisa kuota pegawai dihitung ulang.
+Tools: Playwright, DBeaver",Approval Cuti,High,"approval_cuti,positif,qa_testing","1. Login Manajer
+2. Buka /cuti
+3. Klik data-testid=""btn-approve-1""","POST /cuti/status
+id: 1
+status: APPROVED",HTTP 302 -> /cuti. Badge status berubah APPROVED. Kuota terpakai +3 hari.
+Test,[TC-CUTI-008] Manajer menolak pengajuan cuti REJECTED,"Pre-conditions: Pengajuan cuti status PENDING tersedia
+Post-conditions: Record status cuti jadi REJECTED.
+Tools: Playwright, DBeaver",Approval Cuti,High,"approval_cuti,positif,qa_testing","1. Login Manajer
+2. Klik data-testid=""btn-reject-1""","POST /cuti/status
+id: 1
+status: REJECTED",HTTP 302 -> /cuti. Badge REJECTED. Kuota tidak terpotong.
+Test,[TC-CUTI-009] Pegawai mencoba approve cuti miliknya sendiri,"Pre-conditions: Login role Pegawai
+Post-conditions: Status cuti tetap PENDING.
+Tools: Postman, OWASP ZAP",Approval Cuti,High,"approval_cuti,negatif,qa_testing",1. Kirim POST /cuti/status via Postman tanpa UI Manajer,"POST /cuti/status
+id: 1
+status: APPROVED",HTTP 403 / redirect /dashboard. Alert: Anda tidak memiliki hak akses.
+Test,[TC-SEC-001] Submit form mutasi POST tanpa CSRF Token valid,"Pre-conditions: Pengguna terautentikasi (login sukses)
+Post-conditions: Database tidak mengalami perubahan.
+Tools: Postman, OWASP ZAP",Security,High,"security,negatif,qa_testing",1. Kirim POST /pegawai/simpan tanpa field _csrf via Postman,Payload pegawai lengkap tanpa _csrf,HTTP 403. Respon: 403 Forbidden: Invalid or missing CSRF token.
+Test,[TC-SEC-002] SQL Injection pada input filter pencarian pegawai,"Pre-conditions: Halaman /pegawai dapat diakses
+Post-conditions: Sistem aman dari SQL Injection.
+Tools: OWASP ZAP, Postman, Chrome DevTools",Security,High,"security,negatif,qa_testing","1. Input payload SQLi pada kolom search
+2. Submit",search: ' OR '1'='1' -- ,HTTP 200. String diperlakukan literal via PDO. Tidak ada data leak/SQL error.
+Test,[TC-SEC-003] Stored XSS pada input Nama Lengkap pegawai,"Pre-conditions: Form tambah/edit pegawai terbuka
+Post-conditions: Payload dirender sebagai teks biasa.
+Tools: OWASP ZAP, Chrome DevTools, Playwright",Security,High,"security,negatif,qa_testing","1. Input payload XSS pada Nama Lengkap
+2. Simpan
+3. Render di view tabel",nama_lengkap: <script>alert('XSS')</script>,Script di-escape via e() menjadi &lt;script&gt;. Tidak ada alert popup terpicu.
+Test,[TC-SEC-004] Verifikasi hashing password bcrypt di database,"Pre-conditions: Akses DB MySQL (DBeaver / CLI)
+Post-conditions: Standar keamanan kredensial terpenuhi.
+Tools: DBeaver, MySQL CLI",Security,High,"security,positif,qa_testing","1. Jalankan: SELECT username, password FROM users;",SQL query direct ke MySQL,"Password tersimpan format bcrypt ($2y$10$...), panjang 60 char, bukan plaintext."
+Test,[TC-SEC-005] Inspeksi atribut keamanan Cookie Session PHPSESSID,"Pre-conditions: Login pengguna sukses
+Post-conditions: Perlindungan terhadap session hijacking.
+Tools: Chrome DevTools",Security,High,"security,positif,qa_testing",1. Buka Chrome DevTools > Application > Cookies > localhost:8000,Cookie: PHPSESSID,"Flag HttpOnly aktif, SameSite=Lax. Tidak bisa diakses via document.cookie."
+Test,[TC-PERF-001] Beban rendering halaman Dashboard & Katalog — P95,"Pre-conditions: Server berjalan di Docker port 8000, DB seeded
+Post-conditions: Sistem stabil tanpa crash Apache/MySQL.
+Tools: k6",Performance,High,"performance,performance,qa_testing","1. Jalankan k6 script: 50 VU, durasi 5 menit
+2. Target: GET /pegawai & /dashboard","50 Virtual Users (VU), duration: 5m",HTTP 200. Latensi P95 <= 500ms. Error rate < 1%.
+Test,[TC-PERF-002] Beban login concurrent 30 user,"Pre-conditions: Akun testing tersedia di DB
+Post-conditions: CPU utilisasi container < 85%.
+Tools: k6",Performance,Medium,"performance,performance,qa_testing","1. Jalankan k6 load test POST /login
+2. 30 concurrent VU","30 VU, POST form-urlencoded: username, password, _csrf",Latensi P95 <= 600ms. Throughput stabil.
+Test,"[TC-COMP-001] Uji lintas peramban Chrome, Firefox, Edge","Pre-conditions: Aplikasi live di Docker port 8000
+Post-conditions: Desain konsisten multi-browser.
+Tools: Playwright (multi-browser), Chrome DevTools",Compatibility,Medium,"compatibility,kompatibilitas,qa_testing","1. Buka /pegawai di Google Chrome, Mozilla Firefox, Microsoft Edge
+2. Cek layout & interaksi",Resolusi Desktop 1920x1080,"Tampilan visual Eduparx konsisten, fungsionalitas tombol 100% identik di semua browser."
+Test,[TC-COMP-002] Uji responsivitas layar tablet & mobile,"Pre-conditions: Chrome DevTools Device Mode aktif
+Post-conditions: Responsif dan mobile-friendly.
+Tools: Chrome DevTools, Playwright",Compatibility,Medium,"compatibility,kompatibilitas,qa_testing","1. Simulasi iPhone 14 (390px) & iPad Air (768px)
+2. Periksa layout 2-kolom katalog",Viewport 390x844 (mobile) dan 768x1024 (tablet),Sidebar stacking 1 kolom pada mobile. Tabel dapat di-scroll horizontal.
