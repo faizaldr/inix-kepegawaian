@@ -3,12 +3,12 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 // Baca dan parse CSV data login
-const csvFilePath = path.resolve(__dirname, './data/login_positive_test_data.csv');
+const csvFilePath = path.resolve(__dirname, './data/login_negative_test_data.csv');
 const fileContent = fs.readFileSync(csvFilePath, { encoding: 'utf-8' });
 
 // Pisahkan per baris dan bersihkan whitespace
 const lines = fileContent.trim().split(/\r?\n/);
-const headers = lines[0].split(',');
+const headers = lines[0].split('|');
 
 // Buat array data credentials
 const testData = lines.slice(1).map((line) => {
